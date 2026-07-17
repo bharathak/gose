@@ -765,7 +765,7 @@ const (
 	PathSeparator = ";:"
 
 	// SeVersion as defined in sweph.h:65
-	SeVersion = "2.10.01"
+	SeVersion = "2.10.03"
 	// J2000 as defined in sweph.h:67
 	J2000 = 2.451545e+06
 	// B1950 as defined in sweph.h:68
