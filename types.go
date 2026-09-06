@@ -58,7 +58,7 @@ type Centisec int32
 type SweData struct {
 	EphePathIsSet      int32
 	JplFileIsOpen      int32
-	Fixfp              []FILE
+	Fixfp              []unsafe.Pointer
 	Ephepath           [256]byte
 	Jplfnam            [256]byte
 	Jpldenum           int32
@@ -129,7 +129,7 @@ type FileData struct {
 	Fversion       int32
 	Astnam         [50]byte
 	SwephDenum     int32
-	Fptr           []FILE
+	Fptr           []unsafe.Pointer
 	Tfstart        float64
 	Tfend          float64
 	Iflg           int32
@@ -253,42 +253,26 @@ type FixedStar struct {
 	allocs6cd294fc interface{}
 }
 
-// FILE as declared in include/_stdio.h:157
-type FILE struct {
-	P              []byte
-	R              int32
-	W              int32
-	Flags          int16
-	File           int16
-	Bf             _Sbuf
-	Lbfsize        int32
-	Cookie         unsafe.Pointer
-	Close          *func(arg0 unsafe.Pointer) int32
-	Read           *func(arg0 unsafe.Pointer, arg1 []byte, arg2 int32) int32
-	Seek           FposT
-	Write          *func(arg0 unsafe.Pointer, arg1 []string, arg2 int32) int32
-	Ub             _Sbuf
-	Extra          []_SFILEX
-	Ur             int32
-	Ubuf           [3]byte
-	Nbuf           [1]byte
-	Lb             _Sbuf
-	Blksize        int32
-	Offset         FposT
-	refba0adba4    *C.FILE
-	allocsba0adba4 interface{}
+// Coordinates represents astronomical coordinates and speed values returned by calculations.
+type Coordinates struct {
+	Longitude float64 // Longitude in degrees
+	Latitude  float64 // Latitude in degrees
+	Distance  float64 // Distance in AU (or km for Moon)
+	SpeedLong float64 // Speed in longitude (degrees/day)
+	SpeedLat  float64 // Speed in latitude (degrees/day)
+	SpeedDist float64 // Speed in distance (AU/day or km/day)
 }
 
-// _Sbuf as declared in include/_stdio.h:92
-type _Sbuf struct {
-	Base           []byte
-	Size           int32
-	ref98bae9e0    *C.struct___sbuf
-	allocs98bae9e0 interface{}
+// HousesResult contains house cusps and associated angles.
+type HousesResult struct {
+	Cusps     [13]float64 // House cusps 1 to 12 (Cusps[1]..Cusps[12])
+	Ascendant float64     // Ascendant (ascmc[0])
+	MC        float64     // Midheaven (MC) (ascmc[1])
+	ARMC      float64     // ARMC (ascmc[2])
+	Vertex    float64     // Vertex (ascmc[3])
+	Equasc    float64     // Equatorial Ascendant (ascmc[4])
+	Coasc1    float64     // Co-Ascendant (Koch) (ascmc[5])
+	Coasc2    float64     // Co-Ascendant (Munkasey) (ascmc[6])
+	Polasc    float64     // Polar Ascendant (ascmc[7])
 }
 
-// FposT type as declared in include/_stdio.h:81
-type FposT int64
-
-// _SFILEX as declared in include/_stdio.h:98
-type _SFILEX C.struct___sFILEX
