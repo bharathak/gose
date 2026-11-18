@@ -417,32 +417,38 @@ const (
 	SeAppToTrue = 1
 	// SeDeNumber as declared in swephexp.h:377
 	SeDeNumber = 431
-	// SeFnameDe200 as declared in swephexp.h:378
+	// Se3DeNumber as declared in swephexp.h:378
+	Se3DeNumber = 441
+	// SeFnameDe200 as declared in swephexp.h:379
 	SeFnameDe200 = "de200.eph"
-	// SeFnameDe403 as declared in swephexp.h:379
+	// SeFnameDe403 as declared in swephexp.h:380
 	SeFnameDe403 = "de403.eph"
-	// SeFnameDe404 as declared in swephexp.h:380
+	// SeFnameDe404 as declared in swephexp.h:381
 	SeFnameDe404 = "de404.eph"
-	// SeFnameDe405 as declared in swephexp.h:381
+	// SeFnameDe405 as declared in swephexp.h:382
 	SeFnameDe405 = "de405.eph"
-	// SeFnameDe406 as declared in swephexp.h:382
+	// SeFnameDe406 as declared in swephexp.h:383
 	SeFnameDe406 = "de406.eph"
-	// SeFnameDe431 as declared in swephexp.h:383
+	// SeFnameDe431 as declared in swephexp.h:384
 	SeFnameDe431 = "de431.eph"
-	// SeFnameDft as declared in swephexp.h:384
+	// SeFnameDe441 as declared in swephexp.h:385
+	SeFnameDe441 = "de441.eph"
+	// SeFnameDft as declared in swephexp.h:386
 	SeFnameDft = "de431.eph"
-	// SeFnameDft2 as declared in swephexp.h:385
+	// SeFnameDft3 as declared in swephexp.h:387
+	SeFnameDft3 = "de441.eph"
+	// SeFnameDft2 as declared in swephexp.h:388
 	SeFnameDft2 = "de406.eph"
-	// SeStarfileOld as declared in swephexp.h:386
+	// SeStarfileOld as declared in swephexp.h:389
 	SeStarfileOld = "fixstars.cat"
-	// SeStarfile as declared in swephexp.h:387
+	// SeStarfile as declared in swephexp.h:390
 	SeStarfile = "sefstars.txt"
-	// SeAstnamfile as declared in swephexp.h:388
+	// SeAstnamfile as declared in swephexp.h:391
 	SeAstnamfile = "seasnam.txt"
-	// SeFictfile as declared in swephexp.h:389
+	// SeFictfile as declared in swephexp.h:392
 	SeFictfile = "seorbel.txt"
-	// SeEphePath as declared in swephexp.h:403
-	SeEphePath = ".:/users/ephe2/:/users/ephe/"
+	// SeEphePath as declared in swephexp.h:406
+	SeEphePath = ".:/home/ephe/"
 	// SeSplitDegRoundSec as declared in swephexp.h:411
 	SeSplitDegRoundSec = 1
 	// SeSplitDegRoundMin as declared in swephexp.h:412

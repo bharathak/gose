@@ -1,9 +1,11 @@
 package gose_test
 
 import (
+	"bytes"
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,16 +23,60 @@ func init() {
 	}
 }
 
-// 1. Library Version
+// 1. Library Version, Denum, and Constants Parity
 func TestVersion(t *testing.T) {
 	buf := make([]byte, 256)
-	gose.Version(buf)
+	ptr := gose.Version(buf)
+	if ptr != &buf[0] {
+		t.Fatal("expected Version(buf) to return pointer to buf[0]")
+	}
 	verStr := gose.VersionStr()
 	if verStr == "" {
 		t.Fatal("expected non-empty version string")
 	}
 	if verStr != "2.10.03" {
 		t.Fatalf("expected version 2.10.03, got %s", verStr)
+	}
+
+	// Test short buffer and nil buffer
+	shortBuf := make([]byte, 4)
+	shortPtr := gose.Version(shortBuf)
+	if shortPtr != &shortBuf[0] || string(shortBuf) != "2.10" {
+		t.Fatalf("unexpected short buffer version: %q", string(shortBuf))
+	}
+	if gose.Version(nil) == nil {
+		t.Fatal("expected non-nil pointer from Version(nil)")
+	}
+
+	// Test GetLibraryPath and GetLibraryPathStr
+	libBuf := make([]byte, 256)
+	if gose.GetLibraryPath(libBuf) != &libBuf[0] {
+		t.Fatal("expected GetLibraryPath(libBuf) to return &libBuf[0]")
+	}
+	_ = gose.GetLibraryPathStr()
+	if gose.GetLibraryPath(nil) == nil {
+		t.Fatal("expected non-nil pointer from GetLibraryPath(nil)")
+	}
+
+	// Test GetDenum (synced from latest swisseph)
+	var xx [6]float64
+	var serr [256]byte
+	_ = gose.CalcUt(2451545.0, gose.SeSun, gose.SeflgSwieph, xx[:], serr[:])
+	denum := gose.GetDenum()
+	// With Moshier fallback or SE, denum is 404 or 431
+	if denum != 404 && denum != 431 && denum != 441 && denum != 0 {
+		t.Fatalf("unexpected GetDenum value: %d", denum)
+	}
+
+	// Verify newly synced swephexp.h constants
+	if gose.Se3DeNumber != 441 {
+		t.Fatalf("expected Se3DeNumber=441, got %d", gose.Se3DeNumber)
+	}
+	if gose.SeFnameDe441 != "de441.eph" || gose.SeFnameDft3 != "de441.eph" {
+		t.Fatalf("unexpected DE441 constants: %s / %s", gose.SeFnameDe441, gose.SeFnameDft3)
+	}
+	if gose.SeEphePath != ".:/home/ephe/" {
+		t.Fatalf("expected SeEphePath='.:/home/ephe/', got %q", gose.SeEphePath)
 	}
 }
 
@@ -82,6 +128,19 @@ func TestJuldayAndRevjul(t *testing.T) {
 	revTm := gose.RevjulTime(jdTm, gose.SeGregCal)
 	if revTm.Year() != 2024 || revTm.Month() != 5 || revTm.Day() != 20 || revTm.Hour() != 12 {
 		t.Fatalf("RevjulTime round-trip failed: got %v", revTm)
+	}
+
+	// Test RevjulTime exact second precision (no float truncation to 59.999999s)
+	for _, tc := range []time.Time{
+		time.Date(2024, 5, 20, 15, 30, 45, 0, time.UTC),
+		time.Date(2024, 5, 20, 15, 1, 0, 0, time.UTC),
+		time.Date(1990, 11, 22, 6, 45, 30, 0, time.UTC),
+	} {
+		jdVal := gose.JuldayTime(tc, gose.SeGregCal)
+		got := gose.RevjulTime(jdVal, gose.SeGregCal)
+		if !got.Round(time.Millisecond).Equal(tc) {
+			t.Fatalf("RevjulTime precision mismatch: want %v, got %v", tc, got)
+		}
 	}
 }
 
@@ -653,11 +712,207 @@ func TestMemorySafetyNilAndUndersizedBuffers(t *testing.T) {
 	ret = gose.Houses(tjd, 51.5, -0.12, int('P'), nil, nil)
 	_ = ret
 
+	// TestMemorySafetyNilAndUndersizedBuffers
 	// Test non-null-terminated string bytes
 	gose.SetEphePath([]byte("/users/ephe")) // non-null terminated slice
 	var xx [6]float64
 	var serr [256]byte
 	gose.Fixstar([]byte("Sirius"), tjd, 0, xx[:], serr[:]) // non-null terminated star name
+}
+
+// 16b. Comprehensive Regression Tests for Latest swisseph Updates & Buffer Safety
+func TestHousesGauquelinSunshineAndSpeeds(t *testing.T) {
+	tjd := 2451545.0
+	geolat := 51.5074
+	geolon := -0.1278
+
+	// 1. Gauquelin ('G') writes 37 cusps and 37 cusp speeds (indices 0..36).
+	// Verify both full 37-element buffers and undersized 13-element / nil buffers (no heap corruption).
+	cusps37 := make([]float64, 37)
+	ascmc10 := make([]float64, 10)
+	cuspSpeed37 := make([]float64, 37)
+	ascmcSpeed10 := make([]float64, 10)
+	serr := make([]byte, 256)
+
+	ret := gose.HousesEx2(tjd, 0, geolat, geolon, int('G'), cusps37, ascmc10, cuspSpeed37, ascmcSpeed10, serr)
+	if ret < 0 {
+		t.Fatalf("HousesEx2 Gauquelin failed: %s", string(serr))
+	}
+	for i := 1; i <= 36; i++ {
+		if cusps37[i] < 0 || cusps37[i] >= 360 {
+			t.Fatalf("Gauquelin sector %d out of range: %f", i, cusps37[i])
+		}
+		if cuspSpeed37[i] == 0 {
+			t.Fatalf("expected non-zero Gauquelin sector %d speed", i)
+		}
+	}
+
+	// Undersized 13-element slice and nil slice with 'G' and 'g' must not overflow
+	shortCusps := make([]float64, 13)
+	shortSpeed := make([]float64, 13)
+	_ = gose.Houses(tjd, geolat, geolon, int('G'), shortCusps, nil)
+	_ = gose.HousesEx(tjd, 0, geolat, geolon, int('g'), shortCusps, ascmc10)
+	_ = gose.HousesEx2(tjd, 0, geolat, geolon, int('G'), shortCusps, ascmc10, shortSpeed, nil, nil)
+	_ = gose.HousesArmc(ascmc10[2], geolat, 23.44, int('G'), shortCusps, ascmc10)
+	_ = gose.HousesArmcEx2(ascmc10[2], geolat, 23.44, int('G'), shortCusps, ascmc10, shortSpeed, nil, nil)
+
+	// 2. Sunshine houses ('I' and 'i') in HousesArmcEx2 use ascmc[9] as input solar declination
+	cusps13 := make([]float64, 13)
+	cuspSpeed13 := make([]float64, 13)
+	ascmcSun := make([]float64, 10)
+	ascmcSun[9] = -23.0 // valid Sun declination
+	ret = gose.HousesArmcEx2(ascmc10[2], geolat, 23.44, int('I'), cusps13, ascmcSun, cuspSpeed13, ascmcSpeed10, serr)
+	if ret < 0 {
+		t.Fatalf("HousesArmcEx2 Sunshine ('I') failed: %s", string(serr))
+	}
+	// Invalid declination (|ascmc[9]| >= 90) in HousesArmc must fail and zero cusps (latest swehouse.c fix)
+	ascmcSun[9] = 100.0
+	ret = gose.HousesArmcEx2(ascmc10[2], geolat, 23.44, int('I'), cusps13, ascmcSun, cuspSpeed13, ascmcSpeed10, serr)
+	if ret != gose.Err {
+		t.Fatalf("expected Err for invalid solar declination in Sunshine houses, got %d", ret)
+	}
+
+	// 3. Test Makransky ('I', 'i') in Southern Hemisphere and APC ('Y') at Equator (latest swehouse.c fixes)
+	for _, sys := range []byte{'P', 'K', 'O', 'R', 'C', 'E', 'W', 'X', 'M', 'H', 'T', 'B', 'U', 'Y', 'L', 'Q', 'F', 'S', 'I', 'i'} {
+		ret = gose.HousesEx2(tjd, 0, -33.8688, 151.2093, int(sys), cusps13, ascmc10, cuspSpeed13, ascmcSpeed10, serr)
+		if ret < 0 {
+			t.Fatalf("HousesEx2 southern hemisphere failed for system %c: %s", sys, string(serr))
+		}
+		for i := 1; i <= 12; i++ {
+			if cusps13[i] < 0 || cusps13[i] >= 360 {
+				t.Fatalf("system %c cusp %d out of range [0, 360): %f", sys, i, cusps13[i])
+			}
+			// Whole Sign ('W') cusps are fixed at 0° of each sign so their cuspSpeed is 0; all other systems move continuously
+			if sys != 'W' && cuspSpeed13[i] == 0 {
+				t.Fatalf("system %c cuspSpeed %d is zero", sys, i)
+			}
+		}
+		if ascmcSpeed10[0] == 0 {
+			t.Fatalf("system %c Ascendant speed is zero", sys)
+		}
+	}
+
+	// 4. Test SeflgRadians scaling on cuspSpeed and ascmcSpeed (latest swehouse.c fix)
+	cuspsDeg := make([]float64, 13)
+	speedDeg := make([]float64, 13)
+	ascmcSpeedDeg := make([]float64, 10)
+	_ = gose.HousesEx2(tjd, 0, geolat, geolon, int('P'), cuspsDeg, ascmc10, speedDeg, ascmcSpeedDeg, serr)
+
+	cuspsRad := make([]float64, 13)
+	speedRad := make([]float64, 13)
+	ascmcSpeedRad := make([]float64, 10)
+	_ = gose.HousesEx2(tjd, gose.SeflgRadians, geolat, geolon, int('P'), cuspsRad, ascmc10, speedRad, ascmcSpeedRad, serr)
+
+	if math.Abs(speedRad[1]-speedDeg[1]*gose.Degtorad) > 1e-9 {
+		t.Fatalf("SeflgRadians cuspSpeed scaling mismatch: rad=%f, deg*Degtorad=%f", speedRad[1], speedDeg[1]*gose.Degtorad)
+	}
+	if math.Abs(ascmcSpeedRad[0]-ascmcSpeedDeg[0]*gose.Degtorad) > 1e-9 {
+		t.Fatalf("SeflgRadians ascmcSpeed scaling mismatch: rad=%f, deg*Degtorad=%f", ascmcSpeedRad[0], ascmcSpeedDeg[0]*gose.Degtorad)
+	}
+}
+
+func TestFixstarCopybackAndAllEdgeCases(t *testing.T) {
+	tjd := 2451545.0
+	xx := make([]float64, 6)
+	mag := make([]float64, 1)
+	serr := make([]byte, 256)
+
+	// 1. When caller passes a buffer of sufficient size (e.g., 256 or 512 bytes),
+	// Fixstar* must write back the canonical "StarName,BayerName" C string.
+	starBuf := make([]byte, 256)
+	copy(starBuf, "Spica")
+	ret := gose.Fixstar2Ut(starBuf, tjd, 0, xx, serr)
+	if ret < 0 {
+		t.Fatalf("Fixstar2Ut Spica failed: %s", string(serr))
+	}
+	n := bytes.IndexByte(starBuf, 0)
+	if n < 0 {
+		n = len(starBuf)
+	}
+	gotStar := string(starBuf[:n])
+	if !strings.Contains(gotStar, "Spica,alVir") {
+		t.Fatalf("expected starBuf to be updated to 'Spica,alVir', got %q", gotStar)
+	}
+
+	// 2. When caller passes a short slice ([]byte("Spica") or []byte("Spica\x00")),
+	// Fixstar* must not overflow or corrupt the slice.
+	shortStar := []byte("Spica")
+	ret = gose.Fixstar(shortStar, tjd, 0, xx, serr)
+	if ret < 0 || string(shortStar) != "Spica" {
+		t.Fatalf("Fixstar with short slice failed or mutated input: ret=%d, star=%q", ret, string(shortStar))
+	}
+	_ = gose.FixstarMag([]byte("Spica\x00"), mag, serr)
+	_ = gose.Fixstar2([]byte("Spica"), tjd, 0, xx, serr)
+	_ = gose.Fixstar2Mag([]byte("Spica"), mag, serr)
+
+	// 3. Nil and empty star slices must not segfault
+	_ = gose.Fixstar(nil, tjd, 0, nil, nil)
+	_ = gose.FixstarUt([]byte{}, tjd, 0, nil, nil)
+	_ = gose.FixstarMag(nil, nil, nil)
+	_ = gose.Fixstar2(nil, tjd, 0, nil, nil)
+	_ = gose.Fixstar2Ut(nil, tjd, 0, nil, nil)
+	_ = gose.Fixstar2Mag(nil, nil, nil)
+
+	// 4. Astro models with nil, short, and "+" (detailed > 2000 bytes output)
+	gose.SetAstroModels(nil, 0)
+	gose.SetAstroModels([]byte("default"), 0)
+	gose.GetAstroModels(nil, nil, 0)
+
+	samod := make([]byte, 64)
+	copy(samod, "+")
+	sdet := make([]byte, 4096)
+	gose.GetAstroModels(samod, sdet, 0)
+	detLen := bytes.IndexByte(sdet, 0)
+	if detLen <= 500 {
+		t.Fatalf("expected detailed GetAstroModels output (>500 bytes) with '+', got %d bytes", detLen)
+	}
+	// Also test GetAstroModels with a small sdet buffer (e.g. 64 bytes) and '+' to ensure no overflow
+	copy(samod, "+")
+	smallDet := make([]byte, 64)
+	gose.GetAstroModels(samod, smallDet, 0)
+
+	// 5. Negative and out-of-range isidmode in GetAyanamsaName must not read out-of-bounds
+	if name := gose.GetAyanamsaName(-1); name != "" {
+		t.Fatalf("expected empty string for GetAyanamsaName(-1), got %q", name)
+	}
+	if name := gose.GetAyanamsaName(-256); name != "" {
+		t.Fatalf("expected empty string for GetAyanamsaName(-256), got %q", name)
+	}
+	if name := gose.GetAyanamsaName(999); name != "" {
+		t.Fatalf("expected empty string for GetAyanamsaName(999), got %q", name)
+	}
+
+	// 6. Nil input slices on all C wrappers must never segfault
+	gose.SetJplFile(nil)
+	gose.SetEphePath(nil)
+	_ = gose.GetPlanetName(gose.SeSun, nil)
+	shortName := make([]byte, 2)
+	if gose.GetPlanetName(gose.SeSun, shortName) != &shortName[0] || string(shortName) != "Su" {
+		t.Fatalf("unexpected GetPlanetName short buffer: %q", string(shortName))
+	}
+	_ = gose.Cs2timestr(360000, ':', 0, nil)
+	_ = gose.Cs2lonlatstr(360000, 'E', 'W', nil)
+	_ = gose.Cs2degstr(360000, nil)
+	gose.Cotrans(nil, nil, 23.44)
+	gose.CotransSp(nil, nil, 23.44)
+	gose.Azalt(tjd, gose.SeEcl2hor, nil, 0, 0, nil, nil)
+	gose.AzaltRev(tjd, gose.SeHor2ecl, nil, nil, nil)
+	_ = gose.HousePos(0, 0, 23.44, int('P'), nil, nil)
+	_ = gose.GauquelinSector(tjd, gose.SeSun, nil, 0, 0, nil, 0, 0, nil, nil)
+	_ = gose.HeliacalUt(tjd, nil, nil, nil, nil, gose.SeHeliacalRising, 0, nil, nil)
+	_ = gose.HeliacalPhenoUt(tjd, nil, nil, nil, nil, gose.SeHeliacalRising, 0, nil, nil)
+	_ = gose.VisLimitMag(tjd, nil, nil, nil, nil, 0, nil, nil)
+	_ = gose.HeliacalAngle(tjd, nil, nil, nil, 0, 0, 0, 0, 0, 0, nil, nil)
+	_ = gose.TopoArcusVisionis(tjd, nil, nil, nil, 0, 0, 0, 0, 0, 0, 0, nil, nil)
+	_ = gose.SolEclipseHow(tjd, 0, nil, nil, nil)
+	_ = gose.LunEclipseHow(tjd, 0, nil, nil, nil)
+	_ = gose.RiseTrans(tjd, gose.SeSun, nil, 0, gose.SeCalcRise, nil, 0, 0, nil, nil)
+	_ = gose.RiseTransTrueHor(tjd, gose.SeSun, nil, 0, gose.SeCalcRise, nil, 0, 0, 0, nil, nil)
+
+	// Restore ephemeris path
+	if abs, err := filepath.Abs("../swisseph/ephe"); err == nil {
+		gose.SetEphePathStr(abs)
+	}
 }
 
 // 17. High-Concurrency Stress Test

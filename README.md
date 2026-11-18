@@ -78,11 +78,11 @@ LD_LIBRARY_PATH=../../source/swisseph LIBRARY_PATH=../../source/swisseph CGO_LDF
 ```
 
 ## Features
-- **100% Swiss Ephemeris v2.10.03 Parity**: All 106 exported C functions from `swephexp.h` are bound.
+- **100% Swiss Ephemeris v2.10.03 Parity**: All 107 exported C functions and constants from `swephexp.h` are bound (including `GetDenum`, `DE441` constants, and updated analytic house cusp speeds).
 - **Zero-Allocation Core**: Calculations run at native C speed with 0 B/op and 0 allocs/op (over 5x faster than legacy bindings with no GC finalizer pressure).
-- **Memory Safe & Robust**: Automatic buffer bounds protection, null-termination guarantees, and 64-bit/32-bit integer safety across all platforms.
-- **Optimized Concurrency**: Mutex protection where required for Swiss Ephemeris internal state, while eliminating contention on pure mathematical routines.
-- **Idiomatic Go Helpers**: Non-breaking ergonomic helpers for `time.Time` integration, structured coordinates (`CalcUtSimple`), house results (`HousesSimple`), and string APIs (`VersionStr`, `SetEphePathStr`).
+- **Memory Safe & Robust**: Automatic buffer bounds protection (including 37-cusp Gauquelin sectors, 512-byte fixed star name buffers, and 4096-byte model description buffers), null-termination guarantees, and 64-bit/32-bit integer safety across all platforms.
+- **Optimized Concurrency**: Mutex protection where required for Swiss Ephemeris internal state, while eliminating contention and CGo overhead on pure mathematical and calendar routines.
+- **Idiomatic Go Helpers**: Non-breaking ergonomic helpers for `time.Time` integration, structured coordinates (`CalcUtSimple`), house results (`HousesSimple`), and string APIs (`VersionStr`, `GetLibraryPathStr`, `SetEphePathStr`, `SetJplFileStr`, `GetPlanetNameStr`, `HouseNameStr`).
 - **Comprehensive Test Suite**: Unit tests, memory safety tests, and race detector verified (`go test -race`).
 
 ## License

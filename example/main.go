@@ -55,7 +55,7 @@ func main() {
 	if iflgret < 0 {
 		fmt.Printf("CalcUt error: %s\n", string(serr[:sn]))
 	} else {
-		fmt.Printf("Sun Longitude: %.6f, Latitude: %.6f, Distance: %.6f AU\n", xx[0], xx[1], xx[2])
+		fmt.Printf("Sun Longitude: %.6f, Latitude: %.6f, Distance: %.6f AU (DE%d)\n", xx[0], xx[1], xx[2], gose.GetDenum())
 	}
 
 	// Test New Function: SolcrossUt

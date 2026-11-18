@@ -375,13 +375,16 @@ extern "C" {
  * which are available at Astrodienst's internal network
  */
 #define SE_DE_NUMBER    431
+#define SE3_DE_NUMBER   441
 #define SE_FNAME_DE200  "de200.eph"
 #define SE_FNAME_DE403  "de403.eph"
 #define SE_FNAME_DE404  "de404.eph"
 #define SE_FNAME_DE405  "de405.eph"
 #define SE_FNAME_DE406  "de406.eph"
 #define SE_FNAME_DE431  "de431.eph"
+#define SE_FNAME_DE441  "de441.eph"
 #define SE_FNAME_DFT    SE_FNAME_DE431
+#define SE_FNAME_DFT3   SE_FNAME_DE441
 #define SE_FNAME_DFT2   SE_FNAME_DE406
 #define SE_STARFILE_OLD "fixstars.cat"
 #define SE_STARFILE     "sefstars.txt"
@@ -400,7 +403,7 @@ extern "C" {
 #if MSDOS
 #  define SE_EPHE_PATH    "\\sweph\\ephe\\"
 #else
-#  define SE_EPHE_PATH    ".:/users/ephe2/:/users/ephe/"
+#  define SE_EPHE_PATH    ".:/home/ephe/"
     /* At Astrodienst, we maintain two ephemeris areas for the 600'000+  asteroid files: 
        the short files in /users/ephe/ast*, the long file in /users/ephe2/ast*.
        /users  is a synonym for /home on many systems */
@@ -691,6 +694,7 @@ ext_def(void) swe_get_astro_models(char *samod, char *sdet, int32 iflag);
  ****************************/
 
 ext_def(char *) swe_version(char *);
+ext_def(int32) swe_get_denum(void);
 ext_def(char *) swe_get_library_path(char *);
 
 /* planets, moon, nodes etc. */
